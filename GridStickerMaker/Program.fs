@@ -8,6 +8,7 @@ module Program
 open System
 open System.IO
 open Argu
+open FSharpPlus
 open SixLabors.ImageSharp
 open SixLabors.ImageSharp.Processing
 
@@ -16,11 +17,11 @@ let StickerSize = 512
 
 type Arguments =
     | [<ExactlyOnce; AltCommandLine("-i")>] Input of string
-    | [<Unique; CustomCommandLine("-x")>] X of int
-    | [<Unique; CustomCommandLine("-y")>] Y of int
-    | [<Unique; AltCommandLine("-s")>] Size of int
+    | [<Unique; CustomCommandLine("-x")>] X of uint
+    | [<Unique; CustomCommandLine("-y")>] Y of uint
+    | [<Unique; AltCommandLine("-s")>] Size of uint
     | [<Unique; AltCommandLine("-o")>] Output of string
-    | [<Unique>] GridSize of int
+    | [<Unique>] GridSize of uint
 
     interface IArgParserTemplate with
         member this.Usage =
@@ -39,11 +40,11 @@ let private errorHandler =
 
 type Settings =
     { Input: string
-      X: int
-      Y: int
-      S: int option
+      X: uint
+      Y: uint
+      S: uint option
       Output: string
-      GridSize: int }
+      GridSize: uint }
 
 module Settings =
     let fromArgv argv =
@@ -51,76 +52,106 @@ module Settings =
             ArgumentParser.Create<Arguments>(errorHandler = errorHandler).Parse(argv)
 
         { Input = results.GetResult <@ Input @>
-          X = results.TryGetResult <@ X @> |> Option.defaultValue 0
-          Y = results.TryGetResult <@ Y @> |> Option.defaultValue 0
+          X = results.TryGetResult <@ X @> |> Option.defaultValue 0u
+          Y = results.TryGetResult <@ Y @> |> Option.defaultValue 0u
           S = results.TryGetResult <@ Size @>
           Output = results.TryGetResult <@ Output @> |> Option.defaultValue "."
-          GridSize = results.TryGetResult <@ GridSize @> |> Option.defaultValue 5 }
+          GridSize = results.TryGetResult <@ GridSize @> |> Option.defaultValue 5u }
 
-[<EntryPoint>]
-let main argv =
-    let { Input = input
+    let run
+        { Input = input
           X = x
           Y = y
           S = s
           Output = output
-          GridSize = gridSize } =
-        Settings.fromArgv argv
+          GridSize = gridSize }
+        : Result<unit, string> =
+        monad.fx' {
+            let image = Image.Load(input)
+            let w = uint image.Width
+            let h = uint image.Height
 
-    let image = Image.Load(input)
-    Directory.CreateDirectory(output) |> ignore
+            printfn $"Image dimensions: %i{w}x%i{h}"
+            printfn $"Offsets: x = %i{x}, y = %i{y}"
 
-    if x < 0 then
-        ArgumentException $"x = %i{x} is less than 0" |> raise
+            Directory.CreateDirectory(output) |> ignore
 
-    if y < 0 then
-        ArgumentException $"y = %i{y} is less than 0" |> raise
+            if x >= w then
+                return! Error $"x = %i{x} is greater than the image width %i{w}"
 
-    if x >= image.Width then
-        ArgumentException $"x = %i{x} is greater than the image width %i{image.Width}"
-        |> raise
+            if y >= h then
+                return! Error $"y = %i{y} is greater than the image height %i{h}"
 
-    if y >= image.Height then
-        ArgumentException $"y = %i{y} is greater than the image height %i{image.Height}"
-        |> raise
+            let s = s |> Option.defaultWith (fun () -> min (w - x) (h - y))
 
-    let s = s |> Option.defaultWith (fun () -> min (image.Width - x) (image.Height - y))
+            printfn $"Square side length: s = %i{s}"
 
-    if s <= 0 then
-        ArgumentException $"s = %i{s} is less than or equal to 0" |> raise
+            if s = 0u then
+                return! Error "s = 0 is invalid"
 
-    let stepSize = s / gridSize
-    
-    if stepSize <= 0 then
-        ArgumentException $"s / gridSize = %i{s} / %i{gridSize} = %i{stepSize} is less than or equal to 0"
-        |> raise
+            if s > w then
+                return!
+                    Error
+                        $"s = %i{s} is greater than the image width %i{w}\n\
+                The largest possible value for s is %i{min w h}\n\
+                The largest possible value for s with x = %i{x} and y = %i{y} is %i{min (w - x) (h - y)}"
 
-    if x + s > image.Width then
-        $"x + x = %i{x} + %i{s} = %i{x + s} is greater than the image width %i{image.Width}\n\
-        The largest possible value for x is %i{image.Width - s}"
-        |> ArgumentException
-        |> raise
+            if s > h then
+                return!
+                    Error
+                        $"s = %i{s} is greater than the image height %i{h}\n\
+                The largest possible value for s is %i{min w h}\n\
+                The largest possible value for s with x = %i{x} and y = %i{y} is %i{min (w - x) (h - y)}"
 
-    if y + s > image.Height then
-        $"y + s = %i{y} + %i{s} = %i{y + s} is greater than the image height %i{image.Height}\n\
-        The largest possible value for y is %i{image.Height - s}"
-        |> ArgumentException
-        |> raise
+            if x + s > w then
+                return!
+                    Error
+                        $"x + s = %i{x} + %i{s} = %i{x + s} is greater than the image width %i{w}\n\
+                The largest possible value for x is %i{w - s}\n\
+                The largest possible value for x with s = %i{s} and y = %i{y} is %i{min (w - s) (h - y)}"
 
-    // Create the sequence of starting points to crop from
-    [ for j in 0 .. (gridSize - 1) do
-          for i in 0 .. (gridSize - 1) -> (x + i * stepSize, y + j * stepSize) ]
-    // Crop, resize, and save each sticker
-    |> Seq.iteri (fun n (i, j) ->
-        printfn $"%i{n + 1} / %i{gridSize * gridSize}..."
+            if y + s > h then
+                return!
+                    Error
+                        $"y + s = %i{y} + %i{s} = %i{y + s} is greater than the image height %i{h}\n\
+                The largest possible value for y is %i{h - s}\n\
+                The largest possible value for y with s = %i{s} and x = %i{x} is %i{min (w - x) (h - s)}"
 
-        use cropped =
-            image.Clone(fun ctx ->
-                ctx
-                    .Crop(Rectangle(i, j, stepSize, stepSize))
-                    .Resize(StickerSize, StickerSize, KnownResamplers.Lanczos3)
-                |> ignore)
+            printfn $"Grid size: %i{gridSize}x%i{gridSize}"
+            let stepSize = s / gridSize
+            printfn $"Side length of each sticker: %i{stepSize}"
 
-        cropped.Save(Path.Join(output, $"%i{n + 1}.webp")))
+            if stepSize = 0u then
+                return! Error $"s / gridSize = %i{s} / %i{gridSize} = 0 is invalid"
 
-    0
+            // Create the sequence of starting points to crop from
+            [ for j in 0u .. (gridSize - 1u) do
+                  for i in 0u .. (gridSize - 1u) -> (x + i * stepSize, y + j * stepSize) ]
+            // Crop, resize, and save each sticker
+            |> Seq.iteri (fun n (i, j) ->
+                printfn $"%i{n + 1} / %i{gridSize * gridSize}..."
+
+                use cropped =
+                    image.Clone(fun ctx ->
+                        ctx
+                            .Crop(Rectangle(int i, int j, int stepSize, int stepSize))
+                            .Resize(StickerSize, StickerSize, KnownResamplers.Lanczos3)
+                        |> ignore)
+
+                cropped.Save(Path.Join(output, $"%i{n + 1}.webp")))
+
+            return ()
+        }
+
+[<EntryPoint>]
+let main argv =
+    Settings.fromArgv argv
+    |> Settings.run
+    |> function
+        | Ok() -> 0
+        | Error e ->
+            let lastColor = Console.ForegroundColor
+            Console.ForegroundColor <- ConsoleColor.Red
+            Console.Error.WriteLine $"ERROR: %s{e}"
+            Console.ForegroundColor <- lastColor
+            1

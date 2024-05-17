@@ -1,0 +1,16 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "GridStickerMaker", "GridStickerMaker\GridStickerMaker.fsproj", "{B7E8C298-BFAF-4D38-80CB-6DF495AFA533}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B7E8C298-BFAF-4D38-80CB-6DF495AFA533}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B7E8C298-BFAF-4D38-80CB-6DF495AFA533}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B7E8C298-BFAF-4D38-80CB-6DF495AFA533}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B7E8C298-BFAF-4D38-80CB-6DF495AFA533}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

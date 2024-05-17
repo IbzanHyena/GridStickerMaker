@@ -27,6 +27,10 @@ Run the program from the command line with the desired configuration options.
 
 ## License
 
-
+MIT license. See the [LICENSE](LICENSE) file for details.
 
 ## Contributing
+
+Please open an issue if you want to contribute something before submitting a pull request.
+This is so that we can discuss the changes before you spend time working on them.
+I would hate for you to spend time on something that I don't want to include in the project.
